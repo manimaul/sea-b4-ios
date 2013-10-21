@@ -101,6 +101,7 @@
 
 @property (nonatomic, weak) IBOutlet UIImageView *imageView;
 @property (nonatomic, weak) IBOutlet UILabel *effectLabel;
+@property (nonatomic) NSOperationQueue *opQueue;
 
 @property (nonatomic) UIImage *image;
 @property (nonatomic) int imageIndex;
@@ -115,6 +116,7 @@
     
     self.image = [UIImage imageNamed:@"cheetahJPEG"];
     [self updateImage:nil];
+    self.opQueue = [NSOperationQueue new];
     
     [self showAlertForFirstRun];
 }
@@ -156,39 +158,52 @@
             self.effectLabel.textColor = [UIColor darkGrayColor];
             break;
         case 5:
-            effectImage = [self applySepiaFilter];
+            [self applySepiaFilter];
             effectText = NSLocalizedString(@"Sepia Filter", @"");
             self.effectLabel.textColor = [UIColor darkGrayColor];
             break;
     }
     
-    self.imageView.image = effectImage;
+    if (effectImage)
+        self.imageView.image = effectImage;
     self.effectLabel.text = effectText;
     
     self.imageIndex++;
 }
 
-- (UIImage *)applySepiaFilter
+- (void)applySepiaFilter
 {
-    CIContext *context = [CIContext contextWithOptions:nil];
+    UIActivityIndicatorView *loadingIndicator = [[UIActivityIndicatorView alloc] initWithActivityIndicatorStyle:UIActivityIndicatorViewStyleWhiteLarge];
+    [self.imageView addSubview:loadingIndicator];
+    [loadingIndicator setCenter:CGPointMake(self.imageView.frame.size.width / 2, self.imageView.frame.size.height / 2)];
+    [loadingIndicator startAnimating];
+    self.imageView.image = nil;
     
-    CIImage *image = [CIImage imageWithCGImage:self.image.CGImage];
-
-    CIFilter *filter = [CIFilter filterWithName:@"CISepiaTone"];
-    
-    [filter setValue:image forKey:kCIInputImageKey];
-    
-    [filter setValue:[NSNumber numberWithFloat:0.9f] forKey:@"InputIntensity"];
-    
-    CIImage *result = [filter valueForKey:kCIOutputImageKey];
-    
-    CGImageRef cgImage = [context createCGImage:result fromRect:[result extent]];
-    
-    UIImage *sepiaImage = [UIImage imageWithCGImage:cgImage];
-    
-    CGImageRelease(cgImage);
-    
-    return sepiaImage;
+    [self.opQueue addOperationWithBlock:^{
+        //
+        CIContext *context = [CIContext contextWithOptions:nil];
+        
+        CIImage *image = [CIImage imageWithCGImage:self.image.CGImage];
+        
+        CIFilter *filter = [CIFilter filterWithName:@"CISepiaTone"];
+        
+        [filter setValue:image forKey:kCIInputImageKey];
+        
+        [filter setValue:[NSNumber numberWithFloat:0.9f] forKey:@"InputIntensity"];
+        
+        CIImage *result = [filter valueForKey:kCIOutputImageKey];
+        
+        CGImageRef cgImage = [context createCGImage:result fromRect:[result extent]];
+        
+        UIImage *sepiaImage = [UIImage imageWithCGImage:cgImage];
+        
+        CGImageRelease(cgImage);
+        
+        [[NSOperationQueue mainQueue] addOperationWithBlock:^{
+            self.imageView.image = sepiaImage;
+            [loadingIndicator removeFromSuperview];
+        }];
+    }];
 }
 
 - (void)showAlertForFirstRun
